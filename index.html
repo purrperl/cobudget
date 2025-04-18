@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hierarchical Budget Allocation</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #chart-container {
+            width: 80%;
+            margin: 0 auto;
+        }
+        .budget-controls {
+            text-align: center;
+            margin: 20px;
+        }
+        .budget-controls input {
+            width: 50px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">National Budget Allocation</h1>
+    <div id="chart-container">
+        <canvas id="budgetChart"></canvas>
+    </div>
+    <div class="budget-controls" id="controls"></div>
+    <script src="js/tree.js"></script>
+    <script>
+        const initialTree = getInitialTree();
+        let currentNodeId = 1; // Start with root node "National Budget"
+
+        // Render the pie chart for the current node
+        function renderChart(nodeId) {
+            const node = getNodeById(nodeId);
+            if (!node) return;
+
+            const childNodes = getChildNodes(nodeId);
+            const labels = childNodes.map(child => child.name);
+            const data = childNodes.map(child => child.budget_allocation);
+
+            const colors = generateColorScheme(labels.length);
+
+            const ctx = document.getElementById('budgetChart').getContext('2d');
+            if (window.budgetChart) {
+                window.budgetChart.destroy();
+            }
+            window.budgetChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors
+                    }]
+                },
+                options: {
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#000',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (tooltipItem) {
+                                    const index = tooltipItem.dataIndex;
+                                    return `${labels[index]}: ${data[index].toFixed(2)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            renderControls(nodeId, childNodes);
+        }
+
+        // Render controls for adjusting budget allocations
+        function renderControls(nodeId, childNodes) {
+            const controlsDiv = document.getElementById('controls');
+            controlsDiv.innerHTML = '';
+
+            childNodes.forEach(child => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '10px';
+
+                const label = document.createElement('label');
+                label.textContent = child.name;
+                label.style.marginRight = '10px';
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.value = child.budget_allocation.toFixed(2);
+                input.min = 0;
+                input.max = 100;
+                input.step = 0.01;
+                input.addEventListener('change', (e) => {
+                    const newValue = parseFloat(e.target.value);
+                    updateBudgetAllocation(nodeId, child.id, newValue);
+                });
+
+                const button = document.createElement('button');
+                button.textContent = 'Navigate';
+                button.style.marginLeft = '10px';
+                button.addEventListener('click', () => {
+                    currentNodeId = child.id;
+                    renderChart(currentNodeId);
+                });
+
+                div.appendChild(label);
+                div.appendChild(input);
+                div.appendChild(button);
+                controlsDiv.appendChild(div);
+            });
+        }
+
+        // Get a node by its ID
+        function getNodeById(nodeId) {
+            return initialTree.find(node => node.id === nodeId);
+        }
+
+        // Get child nodes of a given node
+        function getChildNodes(parentId) {
+            return initialTree.filter(node => node.parent_id === parentId);
+        }
+
+        // Update the budget allocation for a node and adjust siblings proportionally
+        function updateBudgetAllocation(parentId, childId, newAllocation) {
+            const parentNode = getNodeById(parentId);
+            const siblings = getChildNodes(parentId);
+            const totalAllocation = siblings.reduce((sum, sibling) => sum + sibling.budget_allocation, 0);
+            const remainingAllocation = totalAllocation - getNodeById(childId).budget_allocation;
+
+            if (newAllocation < 0 || newAllocation > 100 || remainingAllocation + newAllocation > 100) {
+                alert("Invalid budget allocation. Please ensure the total is within 0-100%.");
+                return;
+            }
+
+            const adjustmentFactor = (100 - newAllocation) / remainingAllocation;
+            siblings.forEach(sibling => {
+                if (sibling.id !== childId) {
+                    sibling.budget_allocation *= adjustmentFactor;
+                }
+            });
+
+            getNodeById(childId).budget_allocation = newAllocation;
+            renderChart(parentId);
+        }
+
+        // Generate a color scheme for the pie chart
+        function generateColorScheme(count) {
+            const colors = [
+                '#4CAF50', '#FF9800', '#F44336', '#2196F3', '#9C27B0', '#FFEB3B', '#00BCD4', '#8BC34A', '#E91E63', '#795548'
+            ];
+            return Array.from({ length: count }, (_, i) => colors[i % colors.length]);
+        }
+
+        renderChart(currentNodeId);
+    </script>
+</body>
+</html>
